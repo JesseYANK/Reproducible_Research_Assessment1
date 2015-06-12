@@ -1,0 +1,160 @@
+---
+title: "Assessment Project 1"
+author: "Kang YAN"
+date: "12 June, 2015"
+output: html_document
+
+---
+##REPRODUCIBLE RESEARCH - Peer Assessment Project 1
+
+
+###Introcution
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+###Objective
+This project rises 4 questions regarding the activity dataset whose answers form the core of this report:
+
+- What is mean total number of steps taken per day?
+- What is the average daily activity pattern?
+- Missing values and the effect of imputing for missing values
+- Are there differences in activity patterns between weekdays and weekends?
+
+
+###Loading and preprocessing the data (remove the "NA" in the variable steps )
+```{r,echo=TRUE}
+URL<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip";
+download.file(URL,destfile="data.zip",method="curl");
+unzip("data.zip")
+data<-read.csv("activity.csv",na.strings="NA",header = TRUE)
+activity<-data[!is.na(data$step),]
+```
+Now, all the NA strings in the variable "steps" have removed from the dataset.
+
+###What is mean total number of steps taken per day
+```{r,echo=TRUE}
+library(lattice)
+Daily<-aggregate(activity$steps,by=list(activity$date),sum);
+names(Daily)=c("date","Sum_steps");
+histogram(Daily$Sum_steps,breaks=30, main = "Number of steps per day", xlab="number of steps", ylab="frequencey")
+```
+
+We can also plot the histogram of steps taken per-day
+```{r echo=TRUE,}
+histogram(~steps|date, data=activity,layout=c(7,9),par.strip.text=list(cex=.75))
+```
+
+The difference be can more significant if the log base 10 of the number of steps perinterval are used:
+```{r echo=TRUE}
+histogram(~log10(steps)|date, data=activity,layout=c(7,9),par.strip.text=list(cex=.75))
+```
+
+The mean and median of total number of steps taken per day
+```{r,echo=TRUE}
+mean(Daily$Sum_steps);
+median(Daily$Sum_steps);
+```
+
+###What is the average daily activity pattern
+```{r,echo=TRUE}
+library(plyr)
+average<-aggregate(activity$steps,by=list(activity$interval),mean)
+names(average)<-c("Interval","Ave_steps")
+average<-mutate(average,Interval=Interval/100)
+plot(average$Interval,average$Ave_steps,type="l",xlab="",ylab="Average Number of Steps",
+     main="Daily Activity")
+```
+
+We can see that the maximum of average number of steps should be around 200.
+```{r echo=TRUE}
+average[which.max(average$Ave_steps),]
+```
+
+With the 104th interval, corresponding to the 8:35am interval, showing the highest mean step activity from October to November 2012 for the given monitored individual
+
+###Missing values and the effect of imputing for missing values
+What we did before had removed all the missing value in the data. As we know that the total number of NA is relatively high at 2304 NAs
+```{r,echo=TRUE}
+sum(is.na(data$steps))
+summary(data$steps)
+```
+
+Since the median of steps is zero. So we will generate a new dataset named "activity_1"
+is based on mean replacement imputation and the new dataset named "activity_2" is based on random replacement imputation.
+```{r echo=TRUE}
+activity_1<-data
+activity_1$steps[is.na(activity_1$steps)] <- mean(activity$steps)
+activity_2<-data
+set.seed(1)
+samp<-sample(activity$steps,sum(is.na(data$steps),TRUE))
+activity_2$steps[is.na(activity_2$steps)] <-samp;
+```
+
+
+In terms of the distributions of the step numbers per interval per day：
+```{r,echo=TRUE}
+histogram(~log10(steps)|date, data=activity_1,layout=c(7,9),
+          main="Mean Replacement Imputation",par.strip.text=list(cex=.75))
+
+histogram(~log10(steps)|date, data=activity_2,layout=c(7,9),
+          main="Random Replacement Imputation",par.strip.text=list(cex=.75))
+```
+
+The use of the mean value imputation, on the other hand, does alter the distribution patterns for those days with missing values but not the overall means:
+
+Random sellection values method fills in those days with missing data with similarly distributed frequency distributions as those observed for other days, suggesting that the random replacement imputation method recreates the frequency distribution observed in the original data fearly well.
+
+With this idea, we will compare the distributions of steps per day between the original data set and the random replacement imputation.
+```{r,echo=TRUE,warning=FALSE}
+library(ggplot2)
+steps_1<-aggregate(data$steps,by=list(data$date),sum)
+steps_2 <- aggregate(activity_2$steps,by=list(activity_2$date),sum)
+steps_1$method <- "none"
+steps_2$method <- "Random Replacemtn imputed"
+comparison <- rbind(steps_1,steps_2)
+ggplot(comparison, aes((x), fill=method)) + geom_density(alpha=.2)
+```
+
+The plot shows that, as would be expected, the total number of steps is higher in the RSV imputed data set compared to the original data set. As far as the RSV imputed data set being a valid correction of missing values is in part supported by the distributions being very similar between the two data sets, although the RSV imputation has smoothed the original distribution eliminating some of the dataset's no-random normal characteristics.
+
+Now, we will calculate the mean of the data generated bt random replacement method.
+```{r,echo=TRUE}
+mean(steps_2[,2])
+median(steps_2[,2])
+```
+
+
+###Are there differences in activity patterns between weekdays and weekends
+This part we will use the random replacement data for analysis.
+```{r,echo=TRUE}
+activity_2$day<-weekdays(as.Date(activity_2$date))
+activity_2$day <- factor(activity_2$day, levels= c("Monday", 
+                "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+weekly_steps <- by(activity_2$steps, activity_2$day, mean)
+plot(weekly_steps,type="l",main = "Number of steps by day of the week", 
+     ylab="mean number of steps", xlab="day of the week",xaxt="n")
+axis(1, at = 1:7, labels=c("Monday","Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),cex.axis=0.75)
+abline(h=mean(weekly_steps), col=3, lty=2)
+```
+
+A better insight of the average weekly 24 hour activity pattern is shown in the next plot generated comparing the average day of the week 24 hour activity.
+```{r echo=TRUE}
+levels(activity_2$day) <- list(weekday = c("Monday", "Tuesday","Wednesday","Thursday", "Friday"),weekend = c("Saturday", "Sunday"))
+avg_steps <- aggregate(activity_2$steps, 
+        list(interval = activity_2$interval/100,weekdays = activity_2$day),
+                      mean)
+names(avg_steps)[3] <- "mean_steps"
+xyplot(avg_steps$mean_steps ~ avg_steps$interval | avg_steps$weekdays, 
+       layout = c(1, 2), type = "l", 
+       xlab = "Interval", ylab = "Number of steps")
+```
+
+We can also calculate the mean and median of steps between weekdays and weekends.
+```{r,echo=TRUE}
+result<-aggregate(activity_2$steps,by=list(activity_2$day),summary)
+result
+```
+
+You can see that there exist differences in activity patterns between weekdays and weekends.
+
+###END
+
